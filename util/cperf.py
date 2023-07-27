@@ -917,7 +917,7 @@ def set_unloaded(experiment):
     # Find (or generate) unloaded data for comparison.
     files = sorted(glob.glob("%s/%s-*.rtts" % (log_dir, experiment)))
     if len(files) == 0:
-        raise Exception("Couldn't find %s RTT data" % (experiment))
+        print("Couldn't find %s RTT data" % (experiment))
     rtts = {}
     for file in files:
         read_rtts(file, rtts)
@@ -952,12 +952,15 @@ def get_digest(experiment):
     digest["slow_50"] = []
     digest["slow_99"] = []
     digest["slow_999"] = []
+    digest["min"] = []
+    digest["slow_min"] = []
 
     # Read in the RTT files for this experiment.
     files = sorted(glob.glob(log_dir + ("/%s-*.rtts" % (experiment))))
     if len(files) == 0:
-        raise Exception("Couldn't find RTT data for %s experiment"
+        print("Couldn't find RTT data for %s experiment"
                 % (experiment))
+        return {}
     sys.stdout.write("Reading RTT data for %s experiment: " % (experiment))
     sys.stdout.flush()
     for file in files:
@@ -967,8 +970,7 @@ def get_digest(experiment):
     print("")
 
     if len(unloaded_p50) == 0:
-        raise Exception("No unloaded data: must invoked set_unloaded")
-
+        print("No unloaded data: must invoked set_unloaded")
     rtts = digest["rtts"]
     buckets = get_buckets(rtts, digest["total_messages"])
     bucket_length, bucket_cum_frac = buckets[0]
@@ -988,10 +990,12 @@ def get_digest(experiment):
                 bucket_rtts.append(0)
                 bucket_slowdowns.append(0)
             bucket_rtts = sorted(bucket_rtts)
+            digest["min"].append(bucket_rtts[0])
             digest["p50"].append(bucket_rtts[bucket_count//2])
             digest["p99"].append(bucket_rtts[bucket_count*99//100])
             digest["p999"].append(bucket_rtts[bucket_count*999//1000])
             bucket_slowdowns = sorted(bucket_slowdowns)
+            digest["slow_min"].append(bucket_slowdowns[0])
             digest["slow_50"].append(bucket_slowdowns[bucket_count//2])
             digest["slow_99"].append(bucket_slowdowns[bucket_count*99//100])
             digest["slow_999"].append(bucket_slowdowns[bucket_count*999//1000])
@@ -1194,7 +1198,12 @@ def plot_slowdown(ax, experiment, percentile, label, **kwargs):
     """
 
     digest = get_digest(experiment)
-    if percentile == "p50":
+    if(not digest):
+        return
+    if percentile == "slow_min":
+        x, y = make_histogram(digest["cum_frac"], digest["slow_min"],
+                init=[0, digest["slow_min"][0]], after=False)
+    elif percentile == "p50":
         x, y = make_histogram(digest["cum_frac"], digest["slow_50"],
                 init=[0, digest["slow_50"][0]], after=False)
     elif percentile == "p99":
@@ -1282,6 +1291,8 @@ def get_short_cdf(experiment):
     global log_dir, date_time
     short = []
     digest = get_digest(experiment)
+    if (not digest):
+        return [0, 0]
     rtts = digest["rtts"]
     messages_left = digest["total_messages"]//10
     longest = 0
