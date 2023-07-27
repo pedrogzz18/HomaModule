@@ -117,6 +117,8 @@ for workload, bw in load_info:
     homa_exp = "homa_" + workload
     tcp_exp = "tcp_" + workload
     dctcp_exp = "dctcp_" + workload
+    distbench_homa_exp = "distbench_homa_" + workload
+    grpc_exp = "grpc_" + workload
 
     set_unloaded(unloaded_exp)
 
@@ -124,15 +126,15 @@ for workload, bw in load_info:
     log("Generating slowdown plot for %s" % (workload))
     title = "%s %d nodes, %.1f Gbps" % (workload.capitalize(),
             options.num_nodes, bw)
-    ax = start_slowdown_plot(title, 1000, homa_exp)
+    ax = start_slowdown_plot(title, 1000, grpc_exp)
     if options.tcp:
         plot_slowdown(ax, tcp_exp, "p99", "TCP P99", color=tcp_color)
         plot_slowdown(ax, tcp_exp, "p50", "TCP P50", color=tcp_color2)
     if options.dctcp:
         plot_slowdown(ax, dctcp_exp, "p99", "DCTCP P99", color=dctcp_color)
         plot_slowdown(ax, dctcp_exp, "p50", "DCTCP P50", color=dctcp_color2)
-    plot_slowdown(ax, homa_exp, "p99", "Homa P99", color=homa_color)
-    plot_slowdown(ax, homa_exp, "p50", "Homa P50", color=homa_color2)
+    plot_slowdown(ax, grpc_exp, "p99", grpc_exp, color=homa_color)
+    plot_slowdown(ax, grpc_exp, "p50", grpc_exp, color=homa_color2)
     ax.legend(loc="upper right", prop={'size': 9})
     plt.tight_layout()
     plt.savefig("%s/reports/vs_tcp_%s.pdf" % (options.log_dir, workload))
@@ -140,18 +142,18 @@ for workload, bw in load_info:
     # Generate CDF of small-message RTTs.
     log("Generating short message CDF for %s" % (workload))
     unloaded_x, unloaded_y = get_short_cdf(unloaded_exp)
-    homa_x, homa_y = get_short_cdf(homa_exp)
+    homa_x, homa_y = get_short_cdf(grpc_exp)
     if options.tcp:
         tcp_x, tcp_y = get_short_cdf(tcp_exp)
     if options.dctcp:
         dctcp_x, dctcp_y = get_short_cdf(dctcp_exp)
-    start_cdf_plot(title, 10, 0.99e05, 1e-05, "RTT (usecs)",
+    start_cdf_plot(title, 10, 10000, 1e-05, "RTT (usecs)",
             "Cumulative Fraction Short Messages")
     if options.tcp:
         plt.plot(tcp_x, tcp_y, label="TCP", color=tcp_color)
     if options.dctcp:
         plt.plot(dctcp_x, dctcp_y, label="DCTCP", color=dctcp_color)
-    plt.plot(homa_x, homa_y, label="Homa", color=homa_color)
+    plt.plot(homa_x, homa_y, label=grpc_exp, color=homa_color)
     plt.plot(unloaded_x, unloaded_y, label="Homa best case", color=unloaded_color)
     plt.legend(loc="upper right", prop={'size': 9})
     plt.savefig("%s/reports/short_cdf_%s.pdf" % (options.log_dir, workload))
