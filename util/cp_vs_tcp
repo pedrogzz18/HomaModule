@@ -128,7 +128,7 @@ for workload, bw in load_info:
     title = "%s %d nodes, %.1f Gbps" % (workload.capitalize(),
             options.num_nodes, bw)
     
-    ax = start_slowdown_plot(title, 1000, experiments["grpc"])
+    ax = start_slowdown_plot(title, 100000, experiments["homa"])
     for key, value in experiments.items():
         if (key == "unloaded"):
             continue
@@ -138,7 +138,7 @@ for workload, bw in load_info:
     plt.tight_layout()
     plt.savefig("%s/reports/vs_tcp_%s.pdf" % (options.log_dir, workload))
 
-    ax2 = start_slowdown_plot(title, 1000, experiments["grpc"])
+    ax2 = start_slowdown_plot(title, 100000, experiments["homa"])
     for key, value in experiments.items():
         if (key == "unloaded"):
             continue
@@ -146,6 +146,15 @@ for workload, bw in load_info:
     ax2.legend(loc="upper right", prop={'size': 5})
     plt.tight_layout()
     plt.savefig("%s/reports/vs_tcp_min_%s.pdf" % (options.log_dir, workload))
+
+    ax3 = start_slowdown_plot(title, 100000, experiments["homa"])
+    for key, value in experiments.items():
+        if (key == "unloaded"):
+            continue
+        plot_slowdown(ax3, value, "slow_min", key + "_min")
+    ax2.legend(loc="upper right", prop={'size': 5})
+    plt.tight_layout()
+    plt.savefig("%s/reports/vs_tcp_3D%s.pdf" % (options.log_dir, workload))
 
     # Generate CDF of small-message RTTs.
     log("Generating short message CDF for %s" % (workload))

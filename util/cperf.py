@@ -16,7 +16,9 @@
 
 # This file contains library functions used to run cluster performance
 # tests for the Linux kernel implementation of Homa.
-
+from matplotlib import cbook
+from matplotlib import cm
+from matplotlib.colors import LightSource
 import argparse
 import copy
 import datetime
@@ -33,6 +35,7 @@ import subprocess
 import sys
 import time
 import traceback
+
 
 # Avoid Type 3 fonts (conferences don't tend to like them).
 matplotlib.rcParams['pdf.fonttype'] = 42
@@ -954,6 +957,7 @@ def get_digest(experiment):
     digest["slow_999"] = []
     digest["min"] = []
     digest["slow_min"] = []
+    digest["3DCDF"] = {}
 
     # Read in the RTT files for this experiment.
     files = sorted(glob.glob(log_dir + ("/%s-*.rtts" % (experiment))))
@@ -981,6 +985,14 @@ def get_digest(experiment):
     cur_unloaded = unloaded_p50[min(unloaded_p50.keys())]
     lengths = sorted(rtts.keys())
     lengths.append(999999999)            # Force one extra loop iteration
+
+    for message_length, latencies in rtts.items():
+        for rtt in latencies:
+            if( (not message_length in digest["3DCDF"]) or (not rtt in digest["3DCDF"][message_length]) ):
+                digest["3DCDF"].update({message_length : {rtt : 1}})
+            else:
+                digest["3DCDF"][message_length][rtt] += 1
+
     for length in lengths:
         if length > bucket_length:
             digest["lengths"].append(bucket_length)
@@ -995,10 +1007,10 @@ def get_digest(experiment):
             digest["p99"].append(bucket_rtts[bucket_count*99//100])
             digest["p999"].append(bucket_rtts[bucket_count*999//1000])
             bucket_slowdowns = sorted(bucket_slowdowns)
-            digest["slow_min"].append(bucket_slowdowns[0])
-            digest["slow_50"].append(bucket_slowdowns[bucket_count//2])
-            digest["slow_99"].append(bucket_slowdowns[bucket_count*99//100])
-            digest["slow_999"].append(bucket_slowdowns[bucket_count*999//1000])
+            digest["slow_min"].append(bucket_rtts[0])
+            digest["slow_50"].append(bucket_rtts[bucket_count//2])
+            digest["slow_99"].append(bucket_rtts[bucket_count*99//100])
+            digest["slow_999"].append(bucket_rtts[bucket_count*999//1000])
             if next_bucket >= len(buckets):
                 break
             bucket_rtts = []
@@ -1031,9 +1043,22 @@ def get_digest(experiment):
     digests[experiment] = digest
     return digest
 
+def start_3d_cdf(title, max_y, experiment, size=10, show_top_label=True, show_bot_label=True, figsize=[6,4],
+        y_label="Slowdown", show_upper_x_axis= True):
+    fig, ax = plt.subplots(subplot_kw=dict(projection='3d'))
+    ls = LightSource(270, 45)
+    # To use a custom hillshading mode, override the built-in shading and pass
+    # in the rgb colors of the shaded surface calculated from "shade".
+    rgb = ls.shade(z, cmap=cm.gist_earth, vert_exag=0.1, blend_mode='soft')
+    digest = get_digest(experiment)
+    rtts = digest["rtts"]
+    surf = ax.plot_surface(rtts.keys(), y, z, rstride=1, cstride=1, facecolors=rgb,
+                       linewidth=0, antialiased=False, shade=False)
+    
+    
 def start_slowdown_plot(title, max_y, x_experiment, size=10,
         show_top_label=True, show_bot_label=True, figsize=[6,4],
-        y_label="Slowdown", show_upper_x_axis= True):
+        y_label="latency (us)", show_upper_x_axis= True):
     """
     Create a pyplot graph that will be used for slowdown data. Returns the
     Axes object for the plot.
