@@ -119,7 +119,7 @@ for workload, bw in load_info:
     experiments["tcp"] = "tcp_" + workload
     experiments["dctcp"] = "dctcp_" + workload
     experiments["distbench_homa"] = "distbench_homa_" + workload
-    experiments["grpc"] = "grpc_" + workload
+    experiments["distbench_grpc"] = "distbench_grpc_" + workload
 
     set_unloaded(experiments["unloaded"])
 
@@ -128,7 +128,7 @@ for workload, bw in load_info:
     title = "%s %d nodes, %.1f Gbps" % (workload.capitalize(),
             options.num_nodes, bw)
     
-    ax = start_slowdown_plot(title, 100000, experiments["homa"])
+    ax = start_slowdown_plot(title, 100000000, experiments["homa"])
     for key, value in experiments.items():
         if (key == "unloaded"):
             continue
@@ -136,25 +136,34 @@ for workload, bw in load_info:
         plot_slowdown(ax, value, "p50", key + "_p50")
     ax.legend(loc="upper right", prop={'size': 5})
     plt.tight_layout()
-    plt.savefig("%s/reports/vs_tcp_%s.pdf" % (options.log_dir, workload))
+    plt.savefig("%s/reports/vs_tcp_slowdown%s.pdf" % (options.log_dir, workload))
 
-    ax2 = start_slowdown_plot(title, 100000, experiments["homa"])
+    ax2 = start_rtt_plot(title, 100000000, experiments["homa"])
     for key, value in experiments.items():
         if (key == "unloaded"):
             continue
-        plot_slowdown(ax2, value, "slow_min", key + "_min")
+        plot_rtts(ax2, value, "p99", key + "_p99")
     ax2.legend(loc="upper right", prop={'size': 5})
     plt.tight_layout()
-    plt.savefig("%s/reports/vs_tcp_min_%s.pdf" % (options.log_dir, workload))
+    plt.savefig("%s/reports/vs_tcp_latencies_p99%s.pdf" % (options.log_dir, workload))
 
-    ax3 = start_slowdown_plot(title, 100000, experiments["homa"])
+    ax3 = start_rtt_plot(title, 100000, experiments["homa"])
     for key, value in experiments.items():
         if (key == "unloaded"):
             continue
-        plot_slowdown(ax3, value, "slow_min", key + "_min")
-    ax2.legend(loc="upper right", prop={'size': 5})
+        plot_rtts(ax3, value, "min", key + "_min")
+    ax3.legend(loc="upper right", prop={'size': 5})
     plt.tight_layout()
-    plt.savefig("%s/reports/vs_tcp_3D%s.pdf" % (options.log_dir, workload))
+    plt.savefig("%s/reports/vs_tcp_min%s.pdf" % (options.log_dir, workload))
+
+    ax4 = start_rtt_plot(title, 100000, experiments["homa"])
+    for key, value in experiments.items():
+        if (key == "unloaded"):
+            continue
+        plot_rtts(ax4, value, "p50", key + "_p50")
+    ax4.legend(loc="upper right", prop={'size': 5})
+    plt.tight_layout()
+    plt.savefig("%s/reports/vs_tcp_latencies_p50%s.pdf" % (options.log_dir, workload))
 
     # Generate CDF of small-message RTTs.
     log("Generating short message CDF for %s" % (workload))

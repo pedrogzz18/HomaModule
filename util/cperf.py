@@ -623,6 +623,7 @@ def run_experiment(name, clients, options):
             log("Broken pipe to node%d" % (id))
         nodes.append(id)
         vlog("Command for node%d: %s" % (id, command))
+    print("experimetn set to last", options.seconds)
     wait_output("% ", nodes, command, 40.0)
     if not "unloaded" in options:
         if options.protocol == "homa":
@@ -1007,10 +1008,10 @@ def get_digest(experiment):
             digest["p99"].append(bucket_rtts[bucket_count*99//100])
             digest["p999"].append(bucket_rtts[bucket_count*999//1000])
             bucket_slowdowns = sorted(bucket_slowdowns)
-            digest["slow_min"].append(bucket_rtts[0])
-            digest["slow_50"].append(bucket_rtts[bucket_count//2])
-            digest["slow_99"].append(bucket_rtts[bucket_count*99//100])
-            digest["slow_999"].append(bucket_rtts[bucket_count*999//1000])
+            digest["slow_min"].append(bucket_slowdowns[0])
+            digest["slow_50"].append(bucket_slowdowns[bucket_count//2])
+            digest["slow_99"].append(bucket_slowdowns[bucket_count*99//100])
+            digest["slow_999"].append(bucket_slowdowns[bucket_count*999//1000])
             if next_bucket >= len(buckets):
                 break
             bucket_rtts = []
@@ -1058,7 +1059,93 @@ def start_3d_cdf(title, max_y, experiment, size=10, show_top_label=True, show_bo
     
 def start_slowdown_plot(title, max_y, x_experiment, size=10,
         show_top_label=True, show_bot_label=True, figsize=[6,4],
-        y_label="latency (us)", show_upper_x_axis= True):
+        y_label="slowdown", show_upper_x_axis= True):
+    """
+    Create a pyplot graph that will be used for slowdown data. Returns the
+    Axes object for the plot.
+
+    title:             Title for the plot; may be empty
+    max_y:             Maximum y-coordinate
+    x_experiment:      Name of experiment whose rtt distribution will be used to
+                       label the x-axis of the plot. None means don't label the
+                       x-axis (caller will presumably invoke cdf_xaxis to do it).
+    size:              Size to use for fonts
+    show_top_label:    True means display title text for upper x-axis
+    show_bot_label:    True means display title text for lower x-axis
+    figsize:           Dimensions of plot
+    y_label:           Label for the y-axis
+    show_upper_x_axis: Display upper x-axis ticks and labels (percentiles)
+    """
+
+    fig = plt.figure(figsize=figsize)
+    ax = fig.add_subplot(111)
+    if title != "":
+        ax.set_title(title, size=size)
+    ax.set_xlim(0, 1.0)
+    ax.set_yscale("log")
+    ax.set_ylim(1, max_y)
+    ax.tick_params(right=True, which="both", direction="in", length=5)
+    ticks = []
+    labels = []
+    y = 1
+    while y <= max_y:
+        ticks.append(y)
+        labels.append("%d" % (y))
+        y = y*10
+    ax.set_yticks(ticks)
+    ax.set_yticklabels(labels, size=size)
+    if show_bot_label:
+        ax.set_xlabel("Message Length (bytes)", size=size)
+    ax.set_ylabel(y_label, size=size)
+    ax.grid(which="major", axis="y")
+
+    if show_upper_x_axis:
+        top_axis = ax.twiny()
+        top_axis.tick_params(axis="x", direction="in", length=5)
+        top_axis.set_xlim(0, 1.0)
+        top_ticks = []
+        top_labels = []
+        for x in range(0, 11, 2):
+            top_ticks.append(x/10.0)
+            top_labels.append("%d%%" % (x*10))
+        top_axis.set_xticks(top_ticks)
+        top_axis.set_xticklabels(top_labels, size=size)
+        if show_top_label:
+            top_axis.set_xlabel("Cumulative % of Messages", size=size)
+        top_axis.xaxis.set_label_position('top')
+
+    if x_experiment != None:
+        # Generate x-axis labels
+        ticks = []
+        labels = []
+        cumulative_count = 0
+        target_count = 0
+        tick = 0
+        digest = get_digest(x_experiment)
+        rtts = digest["rtts"]
+        total = digest["total_messages"]
+        for length in sorted(rtts.keys()):
+            cumulative_count += len(rtts[length])
+            while cumulative_count >= target_count:
+                ticks.append(target_count/total)
+                if length < 1000:
+                    labels.append("%.0f" % (length))
+                elif length < 100000:
+                    labels.append("%.1fK" % (length/1000))
+                elif length < 1000000:
+                    labels.append("%.0fK" % (length/1000))
+                else:
+                    labels.append("%.1fM" % (length/1000000))
+                tick += 1
+                target_count = (total*tick)/10
+        ax.set_xticks(ticks)
+        ax.set_xticklabels(labels, size=size)
+    return ax
+
+    
+def start_rtt_plot(title, max_y, x_experiment, size=10,
+        show_top_label=True, show_bot_label=True, figsize=[6,4],
+        y_label="Latency (us)", show_upper_x_axis= True):
     """
     Create a pyplot graph that will be used for slowdown data. Returns the
     Axes object for the plot.
@@ -1209,6 +1296,27 @@ def make_histogram(x, y, init=None, after=True):
         x_new.append(x[i])
         y_new.append(y[i])
     return [x_new, y_new]
+
+def plot_rtts(ax, experiment, percentile, label, **kwargs):
+    digest = get_digest(experiment)
+    if(not digest):
+        return
+    if percentile == "min":
+        x, y = make_histogram(digest["cum_frac"], digest["min"],
+                init=[0, digest["min"][0]], after=False)
+    elif percentile == "p50":
+        x, y = make_histogram(digest["cum_frac"], digest["p50"],
+                init=[0, digest["p50"][0]], after=False)
+    elif percentile == "p99":
+        x, y = make_histogram(digest["cum_frac"], digest["p99"],
+                init=[0, digest["p99"][0]], after=False)
+    elif percentile == "p999":
+        x, y = make_histogram(digest["cum_frac"], digest["p999"],
+                init=[0, digest["p999"][0]], after=False)
+    else:
+        raise Exception("Bad percentile selector %s; must be p50, p99, or p999"
+                % (percentile))
+    ax.plot(x, y, label=label, **kwargs)
 
 def plot_slowdown(ax, experiment, percentile, label, **kwargs):
     """
